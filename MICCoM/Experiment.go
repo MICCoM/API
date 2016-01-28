@@ -4,7 +4,7 @@ import (
 	//"fmt"
 	"errors"
 	"fmt"
-	"github.com/wilke/webserver/CollectionJson"
+	"github.com/MICCoM/API/CollectionJson"
 	//"log"
 	//"net/http"
 	"time"
