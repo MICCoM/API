@@ -94,7 +94,7 @@ func (e Experiment) AddToItems(c *CollectionJson.Collection) int {
 	return len(c.Items.([]Experiment))
 }
 
-func (e Experiment) ToData() (&[]CollectionJson.DataItem , error) {
+func (e Experiment) ToData() ([]CollectionJson.DataItem , error) {
 	
 	var dl  []CollectionJson.DataItem
 	var err error
