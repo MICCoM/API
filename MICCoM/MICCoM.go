@@ -5,7 +5,7 @@ import (
 	//"Experiment"
 	//"github.com/wilke/webserver/Frame"
 	//"errors"
-	"github.com/wilke/webserver/CollectionJson"
+	"github.com/MICCoM/API/CollectionJson"
 	"gopkg.in/mgo.v2"
 	//"gopkg.in/mgo.v2/bson"
 	"encoding/json"
