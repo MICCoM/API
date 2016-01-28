@@ -5,7 +5,7 @@ import (
 	//"errors"
 	"fmt"
 	"github.com/gorilla/mux"
-	"github.com/MICCoM/API/CollectionJson"
+	"github.com/MICCoM/API/CollectionJSON"
 	"github.com/MICCoM/API/MICCoM"
 	//"github.com/wilke/webserver/MICCoM/Experiment"
 	"log"
