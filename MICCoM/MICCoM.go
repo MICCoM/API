@@ -5,7 +5,8 @@ import (
 	//"Experiment"
 	//"github.com/wilke/webserver/Frame"
 	//"errors"
-	"github.com/MICCoM/API/CollectionJson"
+	"github.com/wilke/RESTframe/CollectionJSON"
+	"github.com/wilke/RESTframe/ShockClient"
 	"gopkg.in/mgo.v2"
 	//"gopkg.in/mgo.v2/bson"
 	"encoding/json"
@@ -17,11 +18,13 @@ import (
 	"errors"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 )
 
 const (
 	MongoDBHosts  = "localhost:27017"
+	ShockHost     = "http://localhost:7445"
 	AuthDatabase  = "miccom"
 	AuthUserName  = "miccom"
 	AuthPassword  = "miccom"
@@ -36,6 +39,8 @@ type MICCoM struct {
 	MongoUser     string //"miccom"
 	MongoPassword string //"miccom"
 	Mongo         *mgo.Session
+	Shock         *ShockClient.Client
+	ShockHost     string //Shock URL
 }
 
 type Sample struct{}
@@ -85,22 +90,35 @@ func (m *MICCoM) New(api string, mongoHost string, mongoDB string, user string, 
 		m.MongoPassword = AuthPassword
 	}
 
-	mongoDBDialInfo := &mgo.DialInfo{
-		Addrs:    []string{m.MongoHost},
-		Timeout:  60 * time.Second,
-		Database: m.MongoDB,
-		Username: m.MongoUser,
-		Password: m.MongoPassword,
+	if m.MongoHost != "" {
+
+		mongoDBDialInfo := &mgo.DialInfo{
+			Addrs:    []string{m.MongoHost},
+			Timeout:  60 * time.Second,
+			Database: m.MongoDB,
+			Username: m.MongoUser,
+			Password: m.MongoPassword,
+		}
+
+		// Create a session which maintains a pool of socket connections
+		// to our MongoDB.
+		mongoSession, err := mgo.DialWithInfo(mongoDBDialInfo)
+		if err != nil {
+			log.Fatalf("CreateSession: %s\n", err)
+		} else {
+			mongoSession.SetMode(mgo.Monotonic, true)
+			m.Mongo = mongoSession
+		}
 	}
 
-	// Create a session which maintains a pool of socket connections
-	// to our MongoDB.
-	mongoSession, err := mgo.DialWithInfo(mongoDBDialInfo)
-	if err != nil {
-		log.Fatalf("CreateSession: %s\n", err)
+	if m.ShockHost == "" {
+		var client ShockClient.Client
+		client.URL = ShockHost
+		fmt.Printf("ShockClient %+v\n", client)
+		m.ShockHost = ShockHost
+		m.Shock = &ShockClient.Client{URL: ShockHost}
 	} else {
-		mongoSession.SetMode(mgo.Monotonic, true)
-		m.Mongo = mongoSession
+		fmt.Printf("Something wrong\n")
 	}
 
 	fmt.Printf("Init miccom:\n%+v\n", m)
@@ -126,7 +144,7 @@ func GetExperiment(w http.ResponseWriter, r *http.Request, m MICCoM) {
 		return
 	}
 
-	c := CollectionJson.CollectionJson{}
+	c := CollectionJSON.CollectionJSON{}
 	e := Experiment{}
 	c.Collection.Template, err = e.GetTemplate()
 
@@ -145,10 +163,10 @@ func GetExperiment(w http.ResponseWriter, r *http.Request, m MICCoM) {
 	//w.Write([]byte("Got it"))
 }
 
-func (m MICCoM) CreateExperiment(r *http.Request) (*CollectionJson.CollectionJson, error) { //r *http.Request) {
+func (m MICCoM) CreateExperiment(r *http.Request) (*CollectionJSON.CollectionJSON, error) { //r *http.Request) {
 
 	// Declare local variables
-	// var c CollectionJson.CollectionJson // empty collection object
+	// var c CollectionJSON.CollectionJSON // empty collection object
 
 	fmt.Printf("Request %+v\n", r)
 
@@ -172,7 +190,7 @@ func (m MICCoM) CreateExperiment(r *http.Request) (*CollectionJson.CollectionJso
 
 		// Decode json string and create experiment item
 
-		var t CollectionJson.Template
+		var t CollectionJSON.Template
 
 		err = json.Unmarshal(p, &t)
 
@@ -216,7 +234,7 @@ func (m MICCoM) CreateExperiment(r *http.Request) (*CollectionJson.CollectionJso
 
 			e, err := NewExperiment((time.Now()).String())
 			e.Data = expData
-			c := CollectionJson.Collection{}
+			c := CollectionJSON.Collection{}
 			nrItems := e.AddToItems(&c)
 
 			// Set number of created experiments
@@ -249,14 +267,14 @@ func (m MICCoM) CreateExperiment(r *http.Request) (*CollectionJson.CollectionJso
 				}
 
 				nrItems := e.AddToItems(&c)
-				fmt.Printf("CollectionJson contains %d items (should 2)\n", nrItems)
+				fmt.Printf("CollectionJSON contains %d items (should 2)\n", nrItems)
 			} else {
 				fmt.Printf("Document already exists (%d) , please use update (%+v)\n", count, e)
 			}
 
 			// Set Outer collection frame and return
-			cj := CollectionJson.CollectionJson{Collection: c}
-			fmt.Printf("Returning new CollectionJson: %+v\n", cj)
+			cj := CollectionJSON.CollectionJSON{Collection: c}
+			fmt.Printf("Returning new CollectionJSON: %+v\n", cj)
 			return &cj, err
 		}
 
@@ -281,7 +299,7 @@ func (m MICCoM) CreateExperiment(r *http.Request) (*CollectionJson.CollectionJso
 	// 		return c, err
 	// 	}
 	//
-	// 	c = CollectionJson.CollectionJson{}
+	// 	c = CollectionJSON.CollectionJSON{}
 	// 	fmt.Printf("Debug: %+v\n", c)
 	// 	var l []Experiment
 	// 	for _, d := range experiments {
@@ -299,7 +317,7 @@ func (m MICCoM) CreateExperiment(r *http.Request) (*CollectionJson.CollectionJso
 // *********************
 // http return functions
 
-func (m MICCoM) SendCollection(w http.ResponseWriter, c *CollectionJson.CollectionJson) {
+func (m MICCoM) SendCollection(w http.ResponseWriter, c *CollectionJSON.CollectionJSON) {
 	jb, err := c.ToJson()
 	if err != nil {
 		code := 500
@@ -318,6 +336,52 @@ func (m MICCoM) SendError(w http.ResponseWriter, err error, code int) {
 func UpdateExperiment() {}
 
 func (m MICCoM) mongo(*mgo.Session, error) {}
+
+func (m MICCoM) Get(o interface{}) interface{} {
+
+	if m.Shock != nil {
+		fmt.Printf("Test\n")
+
+		if m.ShockHost == "" {
+			fmt.Printf("Error: No Host\n")
+			var col ShockClient.Collection
+			col.Status = 404
+			col.Error = "Missing host in path"
+			return col
+		}
+
+		uri := strings.Join([]string{m.ShockHost, "node"}, "/")
+		collection, err_code, err := m.Shock.Get(uri)
+
+		if err != nil {
+			fmt.Printf("Error: %v (%v) ", err_code, err.Error)
+			return collection
+		}
+
+		return collection
+
+	} else if m.Mongo != nil {
+		fmt.Printf("Test\n")
+
+		// Request a socket connection from the session to process our query.
+		// Close the session when the goroutine exits and put the connection back
+		// into the pool.
+		sessionCopy := m.Mongo.Copy()
+		defer sessionCopy.Close()
+
+		// Get a mongo collection to execute the query against.
+		collection := sessionCopy.DB(m.MongoDB).C("Experiments")
+
+		// Retrieve the list of experiments.
+		var experiments []Experiment
+		err := collection.Find(nil).All(&experiments)
+		if err != nil {
+			log.Printf("RunQuery : ERROR : %s\n", err)
+			return nil
+		}
+	}
+	return o
+}
 
 func (m MICCoM) testget(o interface{}) interface{} {
 

@@ -4,13 +4,18 @@ import (
 	//"fmt"
 	"errors"
 	"fmt"
-	"github.com/MICCoM/API/CollectionJson"
+	"github.com/wilke/RESTframe/CollectionJSON"
 	//"log"
 	//"net/http"
 	"time"
 )
 
+const (
+	DataType = "Experiment"
+)
+
 type Data struct {
+	Type     string
 	Name     string   `bson:"name"`
 	ID       string   `bson:"ID"`
 	Version  string   `bson:"version"`
@@ -23,13 +28,14 @@ type Data struct {
 }
 
 type Experiment struct {
-	CollectionJson.Item
-	Data Data `json:"data"`
+	CollectionJSON.Item
+	Type string `json:"type"`
+	Data Data   `json:"data"`
 }
 
-//var template CollectionJson.Template{}
+//var template CollectionJSON.Template{}
 
-var experimentTemplate = CollectionJson.Template{
+var experimentTemplate = CollectionJSON.Template{
 	{Name: "Name", Value: "String", Prompt: "Experiment name"},
 	{Name: "Date", Value: "yyyy-mm-dd", Prompt: "Start date of experiment"},
 	{Name: "Duration", Value: "integer", Prompt: "Duration of the experiment in seconds"}}
@@ -44,6 +50,8 @@ func NewExperiment(id string) (Experiment, error) {
 		fmt.Print(t)
 
 		e = Experiment{}
+		e.Type = DataType
+		e.Data.Type = DataType
 		e.Data.ID = id
 		e.Data.Version = "1"
 		e.Data.Date = time.Now().Format(time.ANSIC)
@@ -54,7 +62,7 @@ func NewExperiment(id string) (Experiment, error) {
 	return e, nil
 }
 
-func (e Experiment) GetTemplate() (CollectionJson.Template, error) {
+func (e Experiment) GetTemplate() (CollectionJSON.Template, error) {
 	template := experimentTemplate
 	return template, nil
 }
@@ -74,14 +82,14 @@ func (e Experiment) GetItem() Experiment {
 
 func (e Experiment) AddToData(c interface{}) {
 	//var alist []ExperimentStruct
-	t := c.(CollectionJson.Collection)
+	t := c.(CollectionJSON.Collection)
 	alist := t.Items.([]Experiment)
 	t.Items = append(alist, e)
 
 }
 
 // Add experiment to items list in collection
-func (e Experiment) AddToItems(c *CollectionJson.Collection) int {
+func (e Experiment) AddToItems(c *CollectionJSON.Collection) int {
 	//var alist []ExperimentStruct
 
 	if c.Items == nil {
@@ -94,11 +102,10 @@ func (e Experiment) AddToItems(c *CollectionJson.Collection) int {
 	return len(c.Items.([]Experiment))
 }
 
-func (e Experiment) ToData() ([]CollectionJson.DataItem , error) {
-	
-	var dl  []CollectionJson.DataItem
+func (e Experiment) ToData() ([]CollectionJSON.DataItem, error) {
+
+	var dl []CollectionJSON.DataItem
 	var err error
-	
-	
-	return dl , err
+
+	return dl, err
 }
