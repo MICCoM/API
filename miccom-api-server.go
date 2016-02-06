@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	//"errors"
+	"flag"
 	"fmt"
 	"github.com/MICCoM/API/MICCoM"
 	"github.com/gorilla/mux"
@@ -22,10 +23,18 @@ var myURL url.URL
 var baseURL string
 var miccom MICCoM.MICCoM
 
+var shock_ip = flag.String("shock", "http://localhost:7745", "URL for Shock host")
+var mongo_ip = flag.String("mongo", "http://localhost:21071", "URL for MongoDB host")
+
 func init() {
+
+	flag.Parse()
+
 	myURL.Host = "http://localhost:8001"
 	baseURL = myURL.Host
-	miccom.New("", "", "", "", "")
+	miccom.New(MICCoM.Parameter{ShockHost: *shock_ip,
+		MongoHost: *mongo_ip})
+
 	// i = new(Item)
 	// 	c = new(Frame.Collection)
 	// 	fmt.Printf("%+v\n", c)

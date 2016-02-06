@@ -32,6 +32,15 @@ const (
 	ApiUrl        = "http://localhost:8000"
 )
 
+type Parameter struct {
+	MongoHost string
+	MongoDB   string
+	api       string
+	User      string
+	Password  string
+	ShockHost string
+}
+
 type MICCoM struct {
 	Api           string //ApiUrl
 	MongoHost     string //MongoDBHosts
@@ -59,33 +68,33 @@ var miccom MICCoM
 // }
 
 // intialize miccom struct with values
-func (m *MICCoM) New(api string, mongoHost string, mongoDB string, user string, password string) {
+func (m *MICCoM) New(p Parameter) { //api string, mongoHost string, mongoDB string, user string, password string) {
 
-	if api != "" {
-		m.Api = api
+	if p.api != "" {
+		m.Api = p.api
 	} else {
 		m.Api = ApiUrl
 	}
 
-	if mongoHost != "" {
-		m.MongoHost = mongoHost
+	if p.MongoHost != "" {
+		m.MongoHost = p.MongoHost
 	} else {
 		m.MongoHost = MongoDBHosts
 	}
 
-	if mongoDB != "" {
-		m.MongoDB = mongoDB
+	if p.MongoDB != "" {
+		m.MongoDB = p.MongoDB
 	} else {
 		m.MongoDB = MongoDatabase
 	}
 
-	if user != "" {
-		m.MongoUser = user
+	if p.User != "" {
+		m.MongoUser = p.User
 	} else {
 		m.MongoUser = AuthUserName
 	}
-	if password != "" {
-		m.MongoPassword = password
+	if p.Password != "" {
+		m.MongoPassword = p.Password
 	} else {
 		m.MongoPassword = AuthPassword
 	}
@@ -113,10 +122,14 @@ func (m *MICCoM) New(api string, mongoHost string, mongoDB string, user string, 
 
 	if m.ShockHost == "" {
 		var client ShockClient.Client
-		client.URL = ShockHost
+		h := ShockHost
+		if p.ShockHost != "" {
+			h = p.ShockHost
+		}
+		client.URL = h
 		fmt.Printf("ShockClient %+v\n", client)
-		m.ShockHost = ShockHost
-		m.Shock = &ShockClient.Client{URL: ShockHost}
+		m.ShockHost = h
+		m.Shock = &ShockClient.Client{URL: h}
 	} else {
 		fmt.Printf("Something wrong\n")
 	}
