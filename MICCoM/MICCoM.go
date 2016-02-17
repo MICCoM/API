@@ -26,16 +26,16 @@ const (
 	MongoDBHosts  = "localhost:27017"
 	ShockHost     = "http://localhost:7445"
 	AuthDatabase  = "miccom"
-	AuthUserName  = "miccom"
-	AuthPassword  = "miccom"
+	AuthUserName  = "" //"miccom"
+	AuthPassword  = "" //"miccom"
 	MongoDatabase = "miccom"
-	ApiUrl        = "http://localhost:8000"
+	ApiUrl        = "http://localhost:8001"
 )
 
 type Parameter struct {
 	MongoHost string
 	MongoDB   string
-	api       string
+	API       string
 	User      string
 	Password  string
 	ShockHost string
@@ -70,8 +70,8 @@ var miccom MICCoM
 // intialize miccom struct with values
 func (m *MICCoM) New(p Parameter) { //api string, mongoHost string, mongoDB string, user string, password string) {
 
-	if p.api != "" {
-		m.Api = p.api
+	if p.API != "" {
+		m.Api = p.API
 	} else {
 		m.Api = ApiUrl
 	}
@@ -353,7 +353,7 @@ func (m MICCoM) mongo(*mgo.Session, error) {}
 func (m MICCoM) Get(o interface{}) interface{} {
 
 	if m.Shock != nil {
-		fmt.Printf("Test\n")
+		fmt.Printf("Test Shock\n")
 
 		if m.ShockHost == "" {
 			fmt.Printf("Error: No Host\n")
@@ -374,7 +374,7 @@ func (m MICCoM) Get(o interface{}) interface{} {
 		return collection
 
 	} else if m.Mongo != nil {
-		fmt.Printf("Test\n")
+		fmt.Printf("Test Mongo\n")
 
 		// Request a socket connection from the session to process our query.
 		// Close the session when the goroutine exits and put the connection back

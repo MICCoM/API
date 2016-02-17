@@ -2,7 +2,7 @@ FROM ubuntu:14.04
 MAINTAINER Andreas Wilke <wilke@mcs.anl.gov>
 RUN apt-get update && apt-get -y upgrade
 # Install basic libs and tools
-RUN apt-get -y install ssh sshfs git
+RUN apt-get -y install ssh sshfs git curl emacs
 
 # Install MongoDB
 EXPOSE 27017
