@@ -2,7 +2,7 @@ package MICCoM
 
 import (
 	"fmt"
-	//"Experiment"
+	"github.com/MICCoM/API/MICCoM/Experiment"
 	//"github.com/wilke/webserver/Frame"
 	//"errors"
 	"github.com/wilke/RESTframe/CollectionJSON"
@@ -137,42 +137,71 @@ func (m *MICCoM) New(p Parameter) { //api string, mongoHost string, mongoDB stri
 	fmt.Printf("Init miccom:\n%+v\n", m)
 }
 
-func GetExperiment(w http.ResponseWriter, r *http.Request, m MICCoM) {
+func (m MICCoM) GetExperiment(options map[string][]string) CollectionJSON.Collection {
 
-	// Request a socket connection from the session to process our query.
-	// Close the session when the goroutine exits and put the connection back
-	// into the pool.
+	// Get options to query active store
+	// var options map[string]string
+	//var data Experiment.Data
 
-	sessionCopy := m.Mongo.Copy()
-	defer sessionCopy.Close()
+	fmt.Printf("Options: %+v\n", options)
 
-	// Get a mongo collection to execute the query against.
-	collection := sessionCopy.DB(m.MongoDB).C("Experiments")
+	collection := m.Get(options)
 
-	// Retrieve the list of experiments.
-	var experiments []Data
-	err := collection.Find(nil).All(&experiments)
-	if err != nil {
-		log.Printf("RunQuery : ERROR : %s\n", err)
-		return
-	}
-
-	c := CollectionJSON.CollectionJSON{}
-	e := Experiment{}
-	c.Collection.Template, err = e.GetTemplate()
+	c := CollectionJSON.Collection{}
+	e := Experiment.Experiment{}
+	c.Template, err = e.GetTemplate()
 
 	fmt.Printf("Debug: %+v\n", c)
-	var l []Experiment
-	for _, d := range experiments {
-		e := Experiment{Data: d}
-		e.Href = m.Api + "/experiment/" + d.ID
-		l = append(l, e)
-	}
-	c.Collection.Items = l
-	c.Collection.Count = len(l)
+	var l []Experiment.Experiment
+	//nodes := collection.Data.([]ShockClient.Node)
+	if collection.Data != nil {
+		for i, n := range collection.Data.([]ShockClient.Node) {
 
-	jb, err := c.ToJson()
-	w.Write([]byte(jb))
+			fmt.Printf("Node %v\n", i)
+			var attr map[string]interface{}
+			if n.Attributes != nil {
+
+				attr = n.Attributes.(map[string]interface{})
+				var data Experiment.Data
+				if attr["ID"] != nil {
+					data.ID = attr["ID"].(string)
+				}
+				if attr["Type"] != nil {
+					data.Type = attr["Type"].(string)
+				} else {
+					data.Type = "Experiment"
+				}
+				if attr["codes"] != nil {
+					for _, c := range attr["codes"].([]interface{}) {
+						data.Codes = append(data.Codes, c.(string))
+					}
+				}
+				if attr["version"] != nil {
+					data.Version = attr["version"].(string)
+				}
+				if attr["files"] != nil {
+					for _, f := range attr["files"].([]interface{}) {
+						data.Files = append(data.Files, map2file(f.(map[string]interface{})))
+					}
+				}
+
+				e := Experiment.Experiment{Data: data}
+				e.Href = m.Api + "/experiment/" + n.ID
+				l = append(l, e)
+			} else {
+				e := Experiment.Experiment{}
+				e.Href = m.Api + "/experiment/" + n.ID
+				l = append(l, e)
+			}
+		}
+	}
+	c.Items = l
+	c.Count = len(l)
+
+	return c
+
+	//jb, err := c.ToJson()
+	//w.Write([]byte(jb))
 	//w.Write([]byte("Got it"))
 }
 
@@ -212,7 +241,7 @@ func (m MICCoM) CreateExperiment(r *http.Request) (*CollectionJSON.CollectionJSO
 			return nil, err
 		} else {
 			fmt.Printf("%+v\n", t)
-			expData := Data{}
+			expData := Experiment.Data{}
 			for _, d := range t {
 				fmt.Printf("Name: %+s\n", d.Name)
 				if d.Name != "" {
@@ -232,7 +261,8 @@ func (m MICCoM) CreateExperiment(r *http.Request) (*CollectionJSON.CollectionJSO
 					case d.Name == "Duration":
 						expData.Duration = d.Value
 					case d.Name == "Files":
-						expData.Files = []string{d.Value}
+						file := Experiment.File{ID: d.Value}
+						expData.Files = []Experiment.File{file}
 					case d.Name == "Samples":
 						expData.Samples = []string{d.Value}
 					}
@@ -245,7 +275,7 @@ func (m MICCoM) CreateExperiment(r *http.Request) (*CollectionJSON.CollectionJSO
 
 			}
 
-			e, err := NewExperiment((time.Now()).String())
+			e, err := Experiment.NewExperiment((time.Now()).String())
 			e.Data = expData
 			c := CollectionJSON.Collection{}
 			nrItems := e.AddToItems(&c)
@@ -271,7 +301,7 @@ func (m MICCoM) CreateExperiment(r *http.Request) (*CollectionJSON.CollectionJSO
 					fmt.Printf("Error inserting document into mongo collection (%+v)\n", e)
 					return nil, err
 				}
-				newExp := Experiment{}
+				newExp := Experiment.Experiment{}
 				err = collection.Find(&e).One(&newExp)
 
 				if err != nil {
@@ -350,7 +380,7 @@ func UpdateExperiment() {}
 
 func (m MICCoM) mongo(*mgo.Session, error) {}
 
-func (m MICCoM) Get(o interface{}) interface{} {
+func (m MICCoM) Get(o map[string][]string) ShockClient.Collection {
 
 	if m.Shock != nil {
 		fmt.Printf("Test Shock\n")
@@ -364,6 +394,20 @@ func (m MICCoM) Get(o interface{}) interface{} {
 		}
 
 		uri := strings.Join([]string{m.ShockHost, "node"}, "/")
+
+		id, ok := o["ID"]
+		if ok {
+
+			if len(id) > 1 {
+				uri = strings.Join([]string{uri, "querynode"}, "?")
+				for _, i := range id {
+					uri = strings.Join([]string{uri, strings.Join([]string{"id", i}, "=")}, "&")
+				}
+			} else {
+				uri = strings.Join([]string{uri, id[0]}, "/")
+			}
+		}
+
 		collection, err_code, err := m.Shock.Get(uri)
 
 		if err != nil {
@@ -386,14 +430,14 @@ func (m MICCoM) Get(o interface{}) interface{} {
 		collection := sessionCopy.DB(m.MongoDB).C("Experiments")
 
 		// Retrieve the list of experiments.
-		var experiments []Experiment
+		var experiments []Experiment.Experiment
 		err := collection.Find(nil).All(&experiments)
 		if err != nil {
 			log.Printf("RunQuery : ERROR : %s\n", err)
-			return nil
+			return ShockClient.Collection{}
 		}
 	}
-	return o
+	return ShockClient.Collection{}
 }
 
 func (m MICCoM) testget(o interface{}) interface{} {
@@ -408,7 +452,7 @@ func (m MICCoM) testget(o interface{}) interface{} {
 	collection := sessionCopy.DB(m.MongoDB).C("Experiments")
 
 	// Retrieve the list of experiments.
-	var experiments []Experiment
+	var experiments []Experiment.Experiment
 	err := collection.Find(nil).All(&experiments)
 	if err != nil {
 		log.Printf("RunQuery : ERROR : %s\n", err)
@@ -416,4 +460,23 @@ func (m MICCoM) testget(o interface{}) interface{} {
 	}
 
 	return o
+}
+
+func map2file(a map[string]interface{}) Experiment.File {
+	var f Experiment.File
+
+	b, err := json.Marshal(a)
+	err = json.Unmarshal(b, &f)
+
+	if err != nil {
+		log.Printf("map2file : ERROR : %s\n", err)
+		return Experiment.File{}
+	}
+
+	//var list_of_keys []string
+	// list_of_keys := []string{"filename", "path", "md5", "size", "Type", "format", "tags", "lri", "uri", "ID"}
+	// 	for _, k := range list_of_keys {
+	// 		f.(k = a[k].(string)
+	// 	}
+	return f
 }
