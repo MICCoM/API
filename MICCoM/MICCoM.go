@@ -180,6 +180,7 @@ func (m MICCoM) GetExperiment(options map[string][]string) CollectionJSON.Collec
 					data.Version = attr["version"].(string)
 				}
 				if attr["files"] != nil {
+					fmt.Printf("Files %+v", attr["files"])
 					for _, f := range attr["files"].([]interface{}) {
 						data.Files = append(data.Files, map2file(f.(map[string]interface{})))
 					}
@@ -380,6 +381,68 @@ func UpdateExperiment() {}
 
 func (m MICCoM) mongo(*mgo.Session, error) {}
 
+func (m MICCoM) Create(o map[string][]string) ShockClient.Collection {
+	log.Println("Creating Dataset")
+	if m.Shock != nil {
+		log.Println("Test Shock\n")
+
+		if m.ShockHost == "" {
+			fmt.Printf("Error: No Host\n")
+			var col ShockClient.Collection
+			col.Status = 404
+			col.Error = "Missing host in path"
+			return col
+		}
+
+		uri := strings.Join([]string{m.ShockHost, "node"}, "/")
+
+		id, ok := o["ID"]
+		if ok {
+
+			if len(id) > 1 {
+				uri = strings.Join([]string{uri, "querynode"}, "?")
+				for _, i := range id {
+					uri = strings.Join([]string{uri, strings.Join([]string{"id", i}, "=")}, "&")
+				}
+			} else {
+				uri = strings.Join([]string{uri, id[0]}, "/")
+			}
+		}
+
+		collection, err_code, err := m.Shock.Get(uri)
+
+		if err != nil {
+			fmt.Printf("Error: %v (%v) ", err_code, err.Error)
+			return collection
+		}
+
+		return collection
+
+	} else if m.Mongo != nil {
+		fmt.Printf("Test Mongo\n")
+
+		// Request a socket connection from the session to process our query.
+		// Close the session when the goroutine exits and put the connection back
+		// into the pool.
+		sessionCopy := m.Mongo.Copy()
+		defer sessionCopy.Close()
+
+		// Get a mongo collection to execute the query against.
+		collection := sessionCopy.DB(m.MongoDB).C("Experiments")
+
+		// Retrieve the list of experiments.
+		var experiments []Experiment.Experiment
+		err := collection.Find(nil).All(&experiments)
+		if err != nil {
+			log.Printf("RunQuery : ERROR : %s\n", err)
+			return ShockClient.Collection{}
+		}
+	}
+	return ShockClient.Collection{}
+}
+
+func (m MICCoM) Update(o map[string][]string) ShockClient.Collection { return ShockClient.Collection{} }
+
 func (m MICCoM) Get(o map[string][]string) ShockClient.Collection {
 
 	if m.Shock != nil {
@@ -465,7 +528,17 @@ func (m MICCoM) testget(o interface{}) interface{} {
 func map2file(a map[string]interface{}) Experiment.File {
 	var f Experiment.File
 
+	fmt.Printf("File= %+v\n", a)
+
 	b, err := json.Marshal(a)
+	if err != nil {
+		log.Printf("map2file : ERROR : %s\n", err)
+		return Experiment.File{}
+	}
+	s := string(b[:])
+	fmt.Printf("String= %+v\n", s)
+	fmt.Printf("JSON= %+v\n", b)
+
 	err = json.Unmarshal(b, &f)
 
 	if err != nil {

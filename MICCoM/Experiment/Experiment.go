@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/wilke/RESTframe/CollectionJSON"
-	//"log"
+	"log"
 	//"net/http"
 	"time"
 )
@@ -18,7 +18,7 @@ type File struct {
 	Filename string   `json:"filename"`
 	Path     string   `json:"path"`
 	MD5      string   `json:"md5"`
-	Size     string   `json:"size"`
+	Size     int      `json:"size"`
 	Type     string   `json:"type"`
 	Format   string   `json:"format"`
 	Tags     []string `json:"tags"`
@@ -134,4 +134,13 @@ func (e Experiment) ToData() ([]CollectionJSON.DataItem, error) {
 	var err error
 
 	return dl, err
+}
+
+// Validate Experiment if it is valid and has a minimum set of values
+func (e Experiment) Validate() bool {
+	if e.Data.ID == "" {
+		log.Println("Missing ID in Experiment")
+		return false
+	}
+	return true
 }

@@ -158,6 +158,7 @@ func CreateExperimentHandler(w http.ResponseWriter, r *http.Request) {
 	// Get URL Query Parameter
 	error := r.ParseForm()
 	if error != nil {
+		log.Println("Error, can't parse Form", error)
 		fmt.Printf("ERROR: %+v", error)
 	}
 
@@ -173,82 +174,101 @@ func CreateExperimentHandler(w http.ResponseWriter, r *http.Request) {
 	options["success"] = []string{"0"}
 
 	//Read multiparts from body
+
+	log.Println("Reading Body")
+
 	read_form, err := r.MultipartReader()
-	for {
-		part, err_part := read_form.NextPart()
+	if err != nil {
+		log.Println("Error parsing multipart:", err)
+		e := CollectionJSON.Error{Title: "Invalid form submitted",
+			Code:    400,
+			Message: err.Error()}
+		collection.Error = &e
 
-		// Error handling
-		if err_part != nil {
-			// reached end of stream
-			if err_part == io.EOF {
-				break
-			} else {
-				// Something went wrong
-				// Return with error object
-			}
-		}
+	} else {
+		for {
+			log.Println("Part")
+			part, err_part := read_form.NextPart()
 
-		//Check for expected parts
-		if part.FormName() == "file" {
-			//Handle file upload
-			if part.FileName() == "" {
-				//Error, file part but no file upload
-				log.Println("Creating Experiment but have 'file' part without filename ")
-			} else {
-				//save file to disk
-				log.Println("Creating Experiment but have file - need item part")
-
-				// Create FilePath , store in a tmp dir
-				var tmpPath string = fmt.Sprintf("%s/%s", tmpDir, part.FileName())
-				if tmpFile, err := os.Create(tmpPath); err == nil {
-					defer tmpFile.Close()
-					if _, err = io.Copy(tmpFile, part); err != nil {
-						log.Println("Error", err)
-					}
+			// Error handling
+			if err_part != nil {
+				// reached end of stream
+				if err_part == io.EOF {
+					break
+				} else {
+					// Something went wrong
+					// Return with error object
+					log.Println("Problem", err_part)
 				}
 			}
-		} else if part.FormName() == "attributes" {
-			//arbitrary json structure
-			log.Println("Attributes ", part)
-		} else if part.FormName() == "item" {
-			//Collection Item
-			log.Println("Creating Experiment from item part")
+			log.Println("Read Part")
 
-			// expect json; read content into string
-			//decoder := json.NewDecoder(part)
-			var d Experiment.Data
+			//Check for expected parts
+			if part.FormName() == "file" {
+				//Handle file upload
+				if part.FileName() == "" {
+					//Error, file part but no file upload
+					log.Println("Creating Experiment but have 'file' part without filename ")
+				} else {
+					//save file to disk
+					log.Println("Creating Experiment but have file - need item part")
 
-			slurp, err := ioutil.ReadAll(part)
-			if err != nil {
-				log.Fatal(err)
+					// Create FilePath , store in a tmp dir
+					var tmpPath string = fmt.Sprintf("%s/%s", tmpDir, part.FileName())
+					if tmpFile, err := os.Create(tmpPath); err == nil {
+						defer tmpFile.Close()
+						if _, err = io.Copy(tmpFile, part); err != nil {
+							log.Println("Error", err)
+						}
+					}
+				}
+			} else if part.FormName() == "attributes" {
+				//arbitrary json structure
+				log.Println("Attributes ", part)
+			} else if part.FormName() == "item" {
+				//Collection Item
+				log.Println("Creating Experiment from item part")
+
+				// expect json; read content into string
+				//decoder := json.NewDecoder(part)
+				var d Experiment.Data
+
+				slurp, err := ioutil.ReadAll(part)
+				if err != nil {
+					log.Fatal(err)
+				}
+				err = json.Unmarshal(slurp, &d)
+
+				if err != nil {
+				}
+
+				//err = decoder.Decode(&d)
+
+				if err != nil {
+					log.Println(err)
+					miccom.SendError(w, err, 400)
+					//panic(err)
+					fmt.Println("Yeah")
+					return
+				}
+
+				log.Println("Got experiment: %s ", d.Name)
+
+				e := Experiment.Experiment{Type: "Experiment", Data: d}
+
+				collection.Items = append(collection.Items.([]Experiment.Experiment), e)
+
+				// create experiment from json
+				// create shock node and use as experiment id
+				// update shock node
+
+			} else {
+				//Unexpected part
+				fmt.Printf("Didn't see this part comming: %+v", part)
 			}
-			err = json.Unmarshal(slurp, &d)
-
-			if err != nil {
-			}
-
-			//err = decoder.Decode(&d)
-
-			if err != nil {
-				log.Fatal(slurp)
-				panic(err)
-			}
-
-			log.Println("Got experiment: %s ", d.Name)
-
-			e := Experiment.Experiment{Type: "Experiment", Data: d}
-
-			collection.Items = append(collection.Items.([]Experiment.Experiment), e)
-
-			// create experiment from json
-			// create shock node and use as experiment id
-			// update shock node
-
-		} else {
-			//Unexpected part
-			fmt.Printf("Didn't see this part comming: %+v", part)
+			// END loop block
 		}
-
+		// END reading multipart
 	}
 
 	//var o map[string][]string
@@ -265,6 +285,9 @@ func CreateExperimentHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("Json: %s\n", jb)
 		fmt.Printf("Last Error:  %+v\n", err)
 		w.Header().Set("Content-Type", "application/json")
+		if collection.Error != nil {
+			w.WriteHeader(http.StatusBadRequest)
+		}
 		w.Write([]byte(jb))
 
 	}
@@ -299,48 +322,62 @@ func TestResourceHandler(w http.ResponseWriter, r *http.Request) {
 
 	//Read multiparts from body
 	read_form, err := r.MultipartReader()
-	for {
-		part, err_part := read_form.NextPart()
+	if err != nil {
 
-		// Error handling
-		if err_part != nil {
-			// reached end of stream
-			if err_part == io.EOF {
-				break
-			} else {
-				// Something went wrong
-				// Return with error object
-			}
-		}
+	} else {
+		for {
+			part, err_part := read_form.NextPart()
 
-		//Check for expected parts
-		if part.FormName() == "file" {
-			//Handle file upload
-			if part.FileName() == "" {
-				//Error, file part but no file upload
-			} else {
-				//save file to disk
-				fmt.Printf("PART: %+v\n", part)
-				var tmpPath string = fmt.Sprintf("/Users/Andi/Development/tmp/%s", part.FileName())
-				if tmpFile, err := os.Create(tmpPath); err == nil {
-					defer tmpFile.Close()
-					if _, err = io.Copy(tmpFile, part); err != nil {
-						log.Println("Error", err)
-					}
+			// Error handling
+			if err_part != nil {
+				// reached end of stream
+				if err_part == io.EOF {
+					break
+				} else {
+					// Something went wrong
+					// Return with error object
 				}
 			}
-		} else if part.FormName() == "attributes" {
-			//arbitrary json structure
-			fmt.Printf("PART: %+v\n", part)
-			log.Println("Attributes ", part)
-		} else if part.FormName() == "item" {
-			//Collection Item
-		} else {
-			//Unexpected part
-			fmt.Printf("Didn't see this part comming: %+v", part)
-		}
 
+			//Check for expected parts
+			if part.FormName() == "file" {
+				//Handle file upload
+				if part.FileName() == "" {
+					//Error, file part but no file upload
+				} else {
+					//save file to disk
+					fmt.Printf("PART: %+v\n", part)
+					var tmpPath string = fmt.Sprintf("/Users/Andi/Development/tmp/%s", part.FileName())
+					if tmpFile, err := os.Create(tmpPath); err == nil {
+						defer tmpFile.Close()
+						if _, err = io.Copy(tmpFile, part); err != nil {
+							log.Println("Error", err)
+						}
+					}
+				}
+			} else if part.FormName() == "attributes" {
+				//arbitrary json structure
+				fmt.Printf("PART: %+v\n", part)
+				log.Println("Attributes ", part)
+			} else if part.FormName() == "item" {
+				//Collection Item
+			} else {
+				//Unexpected part
+				fmt.Printf("Didn't see this part comming: %+v", part)
+			}
+			// END Loop block , reading part by part
+		}
+		// END Multipart reading block
 	}
+
+	// Store data
+	// 1. Create Shock node for files
+	// 2. Add file url/object to metadata
+	// 3. Create experiment node
+
+	// For every file in file list create file object and send to storage
+	//if files > 0 {
+	//}
 
 	//var o map[string][]string
 
