@@ -1,3 +1,3 @@
-# RESTful API Server for MICCoM
+# RESTful API Server
 
 - Test webserver in GO 
